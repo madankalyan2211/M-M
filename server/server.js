@@ -8,7 +8,7 @@ import authRoutes from './routes/auth.js';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // Middleware
 app.use(cors({
@@ -17,15 +17,26 @@ app.use(cors({
     if (!origin) return callback(null, true);
     
     // Allow localhost for development
-    if (origin.includes('localhost')) return callback(null, true);
+    if (origin && origin.includes('localhost')) return callback(null, true);
     
     // Allow all Vercel deployments
-    if (origin.includes('vercel.app')) return callback(null, true);
+    if (origin && origin.includes('vercel.app')) return callback(null, true);
+    
+    // Allow all Netlify deployments
+    if (origin && origin.includes('netlify.app')) return callback(null, true);
     
     // Allow specific frontend URL from env
     if (origin === process.env.FRONTEND_URL) return callback(null, true);
     
-    callback(new Error('Not allowed by CORS'));
+    // In production, log the origin for debugging and temporarily allow all origins
+    if (process.env.NODE_ENV === 'production') {
+      console.log('CORS request from origin:', origin);
+      console.log('Expected FRONTEND_URL:', process.env.FRONTEND_URL);
+      // Temporarily allow all origins for debugging
+      return callback(null, true);
+    }
+    
+    callback(null, true); // Allow all for now
   },
   credentials: true
 }));

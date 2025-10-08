@@ -1,4 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+/// <reference types="vite/client" />
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 interface ApiResponse<T = any> {
   success: boolean;
@@ -32,29 +34,46 @@ class ApiService {
     }
 
     try {
+      console.log(`Making API request to: ${this.baseUrl}${endpoint}`);
+      
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         ...options,
         headers,
+        mode: 'cors',
       });
 
-      const data = await response.json();
+      console.log(`Response status: ${response.status}`);
 
       if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = { message: `HTTP ${response.status}: ${response.statusText}` };
+        }
+        
         return {
           success: false,
-          message: data.message || 'An error occurred',
-          errors: data.errors,
-          requiresVerification: data.requiresVerification,
-          email: data.email,
+          message: errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+          errors: errorData.errors,
+          requiresVerification: errorData.requiresVerification,
+          email: errorData.email,
         };
       }
 
+      const data = await response.json();
       return data;
     } catch (error) {
       console.error('API request error:', error);
+      console.error('Request details:', {
+        url: `${this.baseUrl}${endpoint}`,
+        method: options.method || 'GET',
+        headers
+      });
+      
       return {
         success: false,
-        message: 'Network error. Please check your connection.',
+        message: `Network error: ${error instanceof Error ? error.message : 'Please check your connection and try again.'}`,
       };
     }
   }
@@ -83,7 +102,7 @@ class ApiService {
   }
 
   async verifyOTP(data: { email: string; otp: string }) {
-    const response = await this.request('/auth/verify-otp', {
+    const response = await this.request<{ token: string }>('/auth/verify-otp', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -103,7 +122,7 @@ class ApiService {
   }
 
   async login(data: { email: string; password: string }) {
-    const response = await this.request('/auth/login', {
+    const response = await this.request<{ token: string }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
     });

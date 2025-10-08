@@ -18,4 +18,4 @@ services:
       - key: EMAIL_PASS
         sync: false
       - key: FRONTEND_URL
-        value: https://healthcare-app-design-4-3yf69z3xk-madankalyan2211s-projects.vercel.app
+        value: https://healthcare-app-design-4-7ulmu8383-madankalyan2211s-projects.vercel.app

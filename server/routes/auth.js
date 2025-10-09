@@ -248,6 +248,13 @@ router.post('/login', loginValidation, validate, async (req, res) => {
     // Generate token
     const token = generateToken(user._id);
     
+    // Check if user has completed health profile
+    const hasCompletedHealthProfile = user.healthDetails && 
+      Object.keys(user.healthDetails).length > 0 &&
+      user.healthDetails.height &&
+      user.healthDetails.weight &&
+      user.healthDetails.bloodGroup;
+    
     // Return user data
     const userData = {
       id: user._id,
@@ -259,6 +266,7 @@ router.post('/login', loginValidation, validate, async (req, res) => {
       preferences: user.preferences,
       healthDetails: user.healthDetails,
       isEmailVerified: user.isEmailVerified,
+      hasCompletedHealthProfile: hasCompletedHealthProfile,
       loginTime: new Date().toISOString()
     };
     
@@ -279,7 +287,7 @@ router.post('/login', loginValidation, validate, async (req, res) => {
   }
 });
 
-// Get current user (protected route)
+// Get current user (protected route) - updated to include health details check
 router.get('/me', authenticate, async (req, res) => {
   try {
     const userData = {
@@ -291,7 +299,12 @@ router.get('/me', authenticate, async (req, res) => {
       location: req.user.location,
       preferences: req.user.preferences,
       healthDetails: req.user.healthDetails,
-      isEmailVerified: req.user.isEmailVerified
+      isEmailVerified: req.user.isEmailVerified,
+      hasCompletedHealthProfile: !!req.user.healthDetails && 
+        Object.keys(req.user.healthDetails).length > 0 &&
+        req.user.healthDetails.height &&
+        req.user.healthDetails.weight &&
+        req.user.healthDetails.bloodGroup
     };
     
     res.json({ 
@@ -310,6 +323,8 @@ router.get('/me', authenticate, async (req, res) => {
 // Update user profile (protected route)
 router.put('/profile', authenticate, async (req, res) => {
   try {
+    console.log('Profile update request received:', req.body);
+    console.log('Authenticated user:', req.user);
     const allowedUpdates = ['name', 'phone', 'location', 'avatar', 'preferences', 'healthDetails'];
     const updates = {};
     
@@ -319,11 +334,15 @@ router.put('/profile', authenticate, async (req, res) => {
       }
     });
     
+    console.log('Updates to apply:', updates);
+    
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { $set: updates },
       { new: true, runValidators: true }
     ).select('-password');
+    
+    console.log('Updated user:', user);
     
     res.json({ 
       success: true, 
@@ -337,6 +356,33 @@ router.put('/profile', authenticate, async (req, res) => {
       message: 'Failed to update profile' 
     });
   }
+});
+
+// Health check endpoint
+router.get('/health', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'Auth service is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// CORS test endpoint
+router.options('/cors-test', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin);
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
+});
+
+router.get('/cors-test', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'CORS test successful',
+    origin: req.headers.origin,
+    timestamp: new Date().toISOString()
+  });
 });
 
 export default router;

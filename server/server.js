@@ -3,12 +3,13 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth.js';
+import profileRoutes from './routes/profile.js';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors({
@@ -22,41 +23,47 @@ app.use(cors({
     // Allow all Vercel deployments
     if (origin && origin.includes('vercel.app')) return callback(null, true);
     
-    // Allow all Netlify deployments
-    if (origin && origin.includes('netlify.app')) return callback(null, true);
-    
     // Allow specific frontend URL from env
-    if (origin === process.env.FRONTEND_URL) return callback(null, true);
+    if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) return callback(null, true);
     
-    // In production, log the origin for debugging and temporarily allow all origins
-    if (process.env.NODE_ENV === 'production') {
+    // Log the origin for debugging in development
+    if (process.env.NODE_ENV !== 'production') {
       console.log('CORS request from origin:', origin);
       console.log('Expected FRONTEND_URL:', process.env.FRONTEND_URL);
-      // Temporarily allow all origins for debugging
       return callback(null, true);
     }
     
-    callback(null, true); // Allow all for now
+    // In production, reject unknown origins
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Request logging middleware
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });
 
-// Routes
+// API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/profile', profileRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ 
     success: true, 
-    message: 'Server is running',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'Healthcare App Backend API is running',
     timestamp: new Date().toISOString()
   });
 });
@@ -78,37 +85,85 @@ app.use((err, req, res, next) => {
   });
 });
 
-// MongoDB connection
+// MongoDB connection with retry logic
 const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
-    console.log('✅ MongoDB connected successfully');
-  } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
-    process.exit(1);
+  const maxRetries = 5;
+  let retries = 0;
+  
+  while (retries < maxRetries) {
+    try {
+      await mongoose.connect(process.env.MONGODB_URI, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+      });
+      console.log('✅ MongoDB connected successfully');
+      return;
+    } catch (error) {
+      retries++;
+      console.error(`❌ MongoDB connection attempt ${retries} failed:`, error.message);
+      
+      if (retries >= maxRetries) {
+        console.error('❌ MongoDB connection failed after max retries');
+        process.exit(1);
+      }
+      
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
   }
 };
 
-// Start server
-const startServer = async () => {
-  await connectDB();
-  
-  app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📧 Email service configured with: ${process.env.EMAIL_USER}`);
-    console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL}`);
-    console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
-  });
-};
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('Received SIGINT. Shutting down gracefully...');
+  await mongoose.connection.close();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('Received SIGTERM. Shutting down gracefully...');
+  await mongoose.connection.close();
+  process.exit(0);
+});
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Promise Rejection:', err);
   process.exit(1);
 });
+
+// Start server
+const startServer = async () => {
+  try {
+    // Validate required environment variables
+    const requiredEnvVars = ['MONGODB_URI', 'JWT_SECRET', 'EMAIL_USER', 'EMAIL_PASS'];
+    const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+    
+    if (missingEnvVars.length > 0) {
+      console.error('❌ Missing required environment variables:', missingEnvVars);
+      process.exit(1);
+    }
+    
+    await connectDB();
+    
+    const server = app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`📡 MongoDB URI: ${process.env.MONGODB_URI ? 'Set' : 'Not set'}`);
+      console.log(`📧 Email service configured with: ${process.env.EMAIL_USER}`);
+      console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'Not set'}`);
+      console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
+    
+    // Handle server errors
+    server.on('error', (error) => {
+      console.error('❌ Server error:', error);
+      process.exit(1);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
+  }
+};
 
 // Start the server
 startServer();

@@ -3,6 +3,6 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "env": {
-    "VITE_API_URL": "https://m-m-ahdp.onrender.com/api"
+    "VITE_API_URL": "https://YOUR_BACKEND_URL/api"
   }
 }

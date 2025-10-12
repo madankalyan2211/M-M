@@ -33,7 +33,7 @@ interface LoginPageProps {
 type ViewMode = 'login' | 'register' | 'verify-otp';
 
 export function LoginPage({ onLogin }: LoginPageProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>('login');
+  const [viewMode, setViewMode] = useState('login');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -46,7 +46,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
+  const [passwordErrors, setPasswordErrors] = useState([]);
 
   const features = [
     { icon: Stethoscope, text: "AI-Powered Symptom Analysis" },
@@ -127,8 +127,12 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     
     setIsLoading(false);
     
-    if (response.success && response.data?.user) {
-      onLogin(response.data.user);
+    if (response.success && response.data) {
+      // Check if user has completed health profile
+      const hasCompletedHealthProfile = response.data.user?.hasCompletedHealthProfile;
+      
+      // If user has not completed health profile, we'll show the dialog in the App component
+      onLogin(response.data.user || { token: response.data.token });
     } else if (response.requiresVerification) {
       setError(response.message || 'Email verification required');
       setViewMode('verify-otp');

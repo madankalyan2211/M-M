@@ -2,20 +2,44 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 const healthDetailsSchema = new mongoose.Schema({
-  height: String,
-  weight: String,
-  bloodGroup: String,
-  dateOfBirth: String,
-  gender: String,
-  allergies: String,
-  chronicConditions: String,
-  emergencyContact: String,
+  height: {
+    type: String,
+    required: [true, 'Height is required']
+  },
+  weight: {
+    type: String,
+    required: [true, 'Weight is required']
+  },
+  bloodGroup: {
+    type: String,
+    required: [true, 'Blood group is required']
+  },
+  dateOfBirth: {
+    type: String,
+    required: [true, 'Date of birth is required']
+  },
+  gender: {
+    type: String,
+    required: [true, 'Gender is required']
+  },
+  allergies: {
+    type: String,
+    default: ''
+  },
+  chronicConditions: {
+    type: String,
+    default: ''
+  },
+  emergencyContact: {
+    type: String,
+    default: ''
+  },
   preferredUnits: {
     type: String,
     enum: ['metric', 'imperial'],
     default: 'metric'
   }
-});
+}, { _id: false });
 
 const userSchema = new mongoose.Schema({
   name: {
@@ -66,6 +90,10 @@ const userSchema = new mongoose.Schema({
     }
   },
   healthDetails: healthDetailsSchema,
+  hasCompletedProfile: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -75,6 +103,9 @@ const userSchema = new mongoose.Schema({
     default: Date.now
   }
 });
+
+// Index for faster lookups
+userSchema.index({ email: 1 });
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {
@@ -113,6 +144,12 @@ userSchema.methods.verifyOTP = function(otp) {
   }
   
   return this.emailVerificationOTP === otp;
+};
+
+// Method to update last login
+userSchema.methods.updateLastLogin = function() {
+  this.lastLogin = new Date();
+  return this.save();
 };
 
 const User = mongoose.model('User', userSchema);

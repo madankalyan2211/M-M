@@ -23,6 +23,7 @@ A complete healthcare application with secure authentication, email verification
 - **[SETUP_GUIDE.md](SETUP_GUIDE.md)** - Comprehensive setup instructions
 - **[IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)** - Technical details
 - **[AUTHENTICATION_FLOW.md](AUTHENTICATION_FLOW.md)** - Visual flow diagrams
+- **[VERCEL_DEPLOYMENT_GUIDE.md](VERCEL_DEPLOYMENT_GUIDE.md)** - Deploy to Vercel
 
 ---
 
@@ -52,6 +53,36 @@ cp .env.example .env
 # Edit .env with API URL
 npm run dev
 ```
+
+---
+
+## ☁️ Deployment
+
+### Vercel Deployment
+
+This application can be deployed to Vercel for both frontend and backend services.
+
+1. **Frontend Deployment**:
+   - Create a new project in Vercel
+   - Connect your GitHub repository
+   - Set the root directory to `/`
+   - Set the build command to `npm run build`
+   - Set the output directory to `dist`
+   - Add environment variable: `VITE_API_URL` (set to your backend URL)
+
+2. **Backend Deployment**:
+   - Create a new project in Vercel
+   - Connect your GitHub repository
+   - Set the root directory to `/server`
+   - The build will be handled automatically by Vercel
+   - Add required environment variables:
+     - `MONGODB_URI`
+     - `JWT_SECRET`
+     - `EMAIL_USER`
+     - `EMAIL_PASS`
+     - `FRONTEND_URL`
+
+For detailed deployment instructions, see [VERCEL_DEPLOYMENT_GUIDE.md](VERCEL_DEPLOYMENT_GUIDE.md).
 
 ---
 
@@ -161,6 +192,7 @@ For detailed setup instructions, troubleshooting, and more:
 - **Full Guide**: See [SETUP_GUIDE.md](SETUP_GUIDE.md)
 - **Technical Details**: See [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)
 - **Flow Diagrams**: See [AUTHENTICATION_FLOW.md](AUTHENTICATION_FLOW.md)
+- **Deployment Guide**: See [VERCEL_DEPLOYMENT_GUIDE.md](VERCEL_DEPLOYMENT_GUIDE.md)
 
 ---
 

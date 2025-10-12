@@ -10,6 +10,8 @@ import { DiagnosisResults } from './components/DiagnosisResults';
 import { EducationSection } from './components/EducationSection';
 import { AccessibilitySection } from './components/AccessibilitySection';
 import { ProfileSection } from './components/ProfileSection';
+import { api } from './services/api';
+import { toast } from 'sonner';
 import { 
   Heart, 
   Home, 
@@ -53,8 +55,17 @@ interface User {
     notifications: boolean;
   };
   healthDetails?: HealthDetails;
+  hasCompletedProfile: boolean;
   loginTime: string;
 }
+
+const navigationItems = [
+  { id: 'welcome', label: 'Home', icon: Home },
+  { id: 'symptoms', label: 'Symptoms', icon: Stethoscope },
+  { id: 'education', label: 'Education', icon: BookOpen },
+  { id: 'accessibility', label: 'Settings', icon: Settings },
+  { id: 'profile', label: 'Profile', icon: User }
+];
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -90,56 +101,104 @@ export default function App() {
     }
   };
 
-  // Handle dark mode toggle
-  const handleDarkModeToggle = (enabled: boolean) => {
-    setIsDarkMode(enabled);
-    toggleDarkModeClass(enabled);
-    localStorage.setItem('darkMode', JSON.stringify(enabled));
-  };
-
-  const navigationItems = [
-    { id: 'welcome', label: 'Home', icon: Home },
-    { id: 'symptoms', label: 'Symptoms', icon: Stethoscope },
-    { id: 'education', label: 'Education', icon: BookOpen },
-    { id: 'accessibility', label: 'Settings', icon: Settings },
-    { id: 'profile', label: 'Profile', icon: User }
-  ];
-
-  const handleLogin = (userData: User) => {
-    setCurrentUser(userData);
-    setCurrentSection('welcome');
-    // Show personal details dialog if user hasn't completed health profile
-    if (!userData.healthDetails) {
-      setShowPersonalDetailsDialog(true);
+  // Handle login
+  const handleLogin = async (email: string, password: string) => {
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      
+      if (response.data.success) {
+        const { user, token } = response.data;
+        
+        // Store token in localStorage
+        localStorage.setItem('token', token);
+        
+        // Set current user
+        const userData: User = {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          healthDetails: user.healthDetails || undefined,
+          hasCompletedProfile: user.hasCompletedProfile || false,
+          loginTime: new Date().toISOString(),
+          preferences: user.preferences || {
+            language: 'en',
+            voiceEnabled: true,
+            notifications: true
+          }
+        };
+        
+        setCurrentUser(userData);
+        setCurrentSection('welcome');
+        
+        // Check if user needs to complete their profile
+        if (!userData.hasCompletedProfile) {
+          setShowPersonalDetailsDialog(true);
+        }
+        
+        // Show welcome message
+        toast.success(`Welcome back, ${userData.name}!`);
+        return true;
+      } else {
+        toast.error(response.data.message || 'Login failed');
+        return false;
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      toast.error('An error occurred during login');
+      return false;
     }
   };
 
-  const handleSaveHealthDetails = (healthDetails: HealthDetails) => {
-    if (currentUser) {
-      const updatedUser = {
-        ...currentUser,
-        healthDetails
-      };
-      setCurrentUser(updatedUser);
-      setShowPersonalDetailsDialog(false);
+  // Handle saving health details
+  const handleSaveHealthDetails = async (healthDetails: HealthDetails) => {
+    if (!currentUser) return;
+    
+    try {
+      const response = await api.post('/profile/health-details', healthDetails);
+      
+      if (response.data.success) {
+        // Update current user with new health details
+        setCurrentUser({
+          ...currentUser,
+          healthDetails,
+          hasCompletedProfile: true
+        });
+        
+        // Close the dialog
+        setShowPersonalDetailsDialog(false);
+        
+        // Show success message
+        toast.success('Health details saved successfully!');
+      } else {
+        toast.error('Failed to save health details. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error saving health details:', error);
+      toast.error('An error occurred while saving your health details.');
     }
   };
 
+  // Skip health details
   const handleSkipHealthDetails = () => {
     setShowPersonalDetailsDialog(false);
   };
 
+  // Handle logout
   const handleLogout = () => {
+    localStorage.removeItem('token');
     setCurrentUser(null);
     setCurrentSection('welcome');
     setSymptomData(null);
     setDiagnosisData(null);
+    toast.success('Successfully logged out');
   };
 
+  // Update user data
   const handleUpdateUser = (updatedUser: User) => {
     setCurrentUser(updatedUser);
   };
 
+  // Navigation handlers
   const handleStartDiagnosis = () => {
     setCurrentSection('symptoms');
   };
@@ -160,7 +219,136 @@ export default function App() {
     setCurrentSection('welcome');
   };
 
-  const handleNavigationClick = (sectionId: string) => {
+  const handleNavigationClick = (sectionId: AppSection) => {
+    setCurrentSection(sectionId);
+    setShowNavigation(false);
+  };
+
+  const canGoBack = currentSection !== 'welcome';
+
+  // Handle dark mode toggle
+  const handleDarkModeToggle = (enabled) => {
+    setIsDarkMode(enabled);
+    toggleDarkModeClass(enabled);
+    localStorage.setItem('darkMode', JSON.stringify(enabled));
+  };
+  const navigationItems = [
+    { id: 'welcome', label: 'Home', icon: Home },
+    { id: 'symptoms', label: 'Symptoms', icon: Stethoscope },
+    { id: 'education', label: 'Education', icon: BookOpen },
+    { id: 'accessibility', label: 'Settings', icon: Settings },
+    { id: 'profile', label: 'Profile', icon: User  // Handle login
+  const handleLogin = async (email: string, password: string) => {
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      
+      if (response.data.success) {
+        const { user, token } = response.data;
+        
+        // Store token in localStorage
+        localStorage.setItem('token', token);
+        
+        // Set current user
+        const userData = {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          healthDetails: user.healthDetails || {},
+          hasCompletedProfile: user.hasCompletedProfile || false,
+          loginTime: new Date().toISOString(),
+          preferences: user.preferences || {
+            language: 'en',
+            voiceEnabled: true,
+            notifications: true
+          }
+        };
+        
+        setCurrentUser(userData);
+        setCurrentSection('welcome');
+        
+        // Check if user needs to complete their profile
+        if (!userData.hasCompletedProfile) {
+          setShowPersonalDetailsDialog(true);
+        }
+        
+        // Show welcome message
+        toast.success(`Welcome back, ${userData.name}!`);
+        return true;
+      } else {
+        toast.error(response.data.message || 'Login failed');
+        return false;
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      toast.error('An error occurred during login');
+      return false;
+    }
+  };
+
+  const handleSaveHealthDetails = async (healthDetails: HealthDetails) => {
+    if (!currentUser) return;
+    
+    try {
+      const response = await api.post('/profile/health-details', healthDetails);
+      
+      if (response.data.success) {
+        // Update current user with new health details
+        setCurrentUser({
+          ...currentUser,
+          healthDetails,
+          hasCompletedProfile: true
+        });
+        
+        // Close the dialog
+        setShowPersonalDetailsDialog(false);
+        
+        // Show success message
+        toast.success('Health details saved successfully!');
+      } else {
+        toast.error('Failed to save health details. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error saving health details:', error);
+      toast.error('An error occurred while saving your health details.');
+    }
+  };
+
+  const handleSkipHealthDetails = () => {
+    setShowPersonalDetailsDialog(false);
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setCurrentSection('welcome');
+    setSymptomData(null);
+    setDiagnosisData(null);
+  };
+
+  const handleUpdateUser = (updatedUser) => {
+    setCurrentUser(updatedUser);
+  };
+
+  const handleStartDiagnosis = () => {
+    setCurrentSection('symptoms');
+  };
+
+  const handleSymptomSubmit = (data) => {
+    setSymptomData(data);
+    setCurrentSection('processing');
+  };
+
+  const handleProcessingComplete = (diagnosis) => {
+    setDiagnosisData(diagnosis);
+    setCurrentSection('results');
+  };
+
+  const handleNewDiagnosis = () => {
+    setSymptomData(null);
+    setDiagnosisData(null);
+    setCurrentSection('welcome');
+  };
+
+  const handleNavigationClick = (sectionId) => {
     setCurrentSection(sectionId as AppSection);
     setShowNavigation(false);
   };

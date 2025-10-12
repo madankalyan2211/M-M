@@ -241,12 +241,18 @@ router.post('/login', loginValidation, validate, async (req, res) => {
       });
     }
     
-    // Update last login
-    user.lastLogin = new Date();
-    await user.save();
+    // Update last login using the new method
+    await user.updateLastLogin();
     
     // Generate token
     const token = generateToken(user._id);
+    
+    // Check if user has completed health profile
+    const hasCompletedHealthProfile = user.healthDetails && 
+      Object.keys(user.healthDetails).length > 0 &&
+      user.healthDetails.height &&
+      user.healthDetails.weight &&
+      user.healthDetails.bloodGroup;
     
     // Return user data
     const userData = {
@@ -259,6 +265,7 @@ router.post('/login', loginValidation, validate, async (req, res) => {
       preferences: user.preferences,
       healthDetails: user.healthDetails,
       isEmailVerified: user.isEmailVerified,
+      hasCompletedHealthProfile: hasCompletedHealthProfile,
       loginTime: new Date().toISOString()
     };
     
@@ -279,7 +286,7 @@ router.post('/login', loginValidation, validate, async (req, res) => {
   }
 });
 
-// Get current user (protected route)
+// Get current user (protected route) - updated to include health details check
 router.get('/me', authenticate, async (req, res) => {
   try {
     const userData = {
@@ -291,7 +298,12 @@ router.get('/me', authenticate, async (req, res) => {
       location: req.user.location,
       preferences: req.user.preferences,
       healthDetails: req.user.healthDetails,
-      isEmailVerified: req.user.isEmailVerified
+      isEmailVerified: req.user.isEmailVerified,
+      hasCompletedHealthProfile: !!req.user.healthDetails && 
+        Object.keys(req.user.healthDetails).length > 0 &&
+        req.user.healthDetails.height &&
+        req.user.healthDetails.weight &&
+        req.user.healthDetails.bloodGroup
     };
     
     res.json({ 

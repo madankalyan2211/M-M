@@ -11,6 +11,11 @@ interface ApiResponse<T = any> {
   email?: string;
 }
 
+interface AuthResponse {
+  token: string;
+  user?: any;
+}
+
 class ApiService {
   private baseUrl: string;
   private token: string | null;
@@ -102,16 +107,10 @@ class ApiService {
   }
 
   async verifyOTP(data: { email: string; otp: string }) {
-    const response = await this.request<{ token: string }>('/auth/verify-otp', {
+    return this.request<AuthResponse>('/auth/verify-otp', {
       method: 'POST',
       body: JSON.stringify(data),
     });
-
-    if (response.success && response.data?.token) {
-      this.setToken(response.data.token);
-    }
-
-    return response;
   }
 
   async resendOTP(email: string) {
@@ -122,16 +121,10 @@ class ApiService {
   }
 
   async login(data: { email: string; password: string }) {
-    const response = await this.request<{ token: string }>('/auth/login', {
+    return this.request<AuthResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
     });
-
-    if (response.success && response.data?.token) {
-      this.setToken(response.data.token);
-    }
-
-    return response;
   }
 
   async getCurrentUser() {

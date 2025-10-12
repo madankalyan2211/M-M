@@ -11,14 +11,28 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// Enhanced CORS configuration
 app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
     
-    // Allow localhost for development
-    if (origin && origin.includes('localhost')) return callback(null, true);
+    // List of allowed origins
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'https://healthcare-app-design-4.vercel.app',
+      'https://healthcare-app-design-4-git-main-madankalyan2211s-projects.vercel.app',
+      'https://*.vercel.app'
+    ];
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin) || 
+        allowedOrigins.some(allowedOrigin => 
+          allowedOrigin.startsWith('https://') && origin.startsWith(allowedOrigin.replace('*', '')))) {
+      return callback(null, true);
+    }
     
     // Allow all Vercel deployments
     if (origin && origin.includes('vercel.app')) return callback(null, true);
@@ -36,7 +50,10 @@ app.use(cors({
     // In production, reject unknown origins
     callback(new Error('Not allowed by CORS'));
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Authorization']
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -44,6 +61,15 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
+});
+
+// Explicitly handle OPTIONS requests for all routes
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin);
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
 });
 
 // API Routes

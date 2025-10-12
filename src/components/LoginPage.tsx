@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -21,51 +21,105 @@ import {
   Stethoscope,
   AlertCircle,
   Check,
-  RefreshCw
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  AlertTriangle
 } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { api } from '../services/api';
+
+// Types
+type ViewMode = 'login' | 'register' | 'verify-otp' | 'forgot-password';
+
+interface FormData {
+  email: string;
+  password: string;
+  name: string;
+  confirmPassword: string;
+}
+
+interface ApiStatus {
+  online: boolean;
+  message: string;
+}
+
+interface Feature {
+  icon: React.FC<{ className?: string }>;
+  text: string;
+}
 
 interface LoginPageProps {
   onLogin: (userData: any) => void;
 }
 
-type ViewMode = 'login' | 'register' | 'verify-otp';
-
 export function LoginPage({ onLogin }: LoginPageProps) {
-  const [viewMode, setViewMode] = useState('login');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [formData, setFormData] = useState({
+  // Form state
+  const [viewMode, setViewMode] = useState<ViewMode>('login');
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
+  const [formData, setFormData] = useState<FormData>({
     email: '',
     password: '',
     name: '',
     confirmPassword: ''
   });
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [passwordErrors, setPasswordErrors] = useState([]);
-
-  const features = [
+  
+  // OTP state
+  const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
+  
+  // UI state
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
+  const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
+  
+  // API status
+  const [apiStatus, setApiStatus] = useState<ApiStatus>({ 
+    online: true, 
+    message: 'API connected' 
+  });
+  
+  const features: Feature[] = [
     { icon: Stethoscope, text: "AI-Powered Symptom Analysis" },
     { icon: Shield, text: "Private & Secure" },
     { icon: Globe, text: "Multi-Language Support" },
     { icon: Heart, text: "Personalized Health Insights" }
   ];
 
+  // Check API health on component mount
+  useEffect(() => {
+    const checkHealth = async () => {
+      try {
+        const health = await api.testConnection();
+        setApiStatus({
+          online: health.success,
+          message: health.message
+        });
+      } catch (error) {
+        console.error('API Health Check Error:', error);
+        setApiStatus({
+          online: false,
+          message: 'API connection failed'
+        });
+      }
+    };
+    
+    checkHealth();
+  }, []);
+
   // Validate password strength
   const validatePassword = (password: string): string[] => {
     const errors: string[] = [];
-    if (password.length < 8) errors.push('At least 8 characters');
-    if (!/[A-Z]/.test(password)) errors.push('One uppercase letter');
-    if (!/[a-z]/.test(password)) errors.push('One lowercase letter');
-    if (!/[0-9]/.test(password)) errors.push('One number');
+    if (password.length < 8) errors.push('at least 8 characters');
+    if (!/[A-Z]/.test(password)) errors.push('one uppercase letter');
+    if (!/[a-z]/.test(password)) errors.push('one lowercase letter');
+    if (!/[0-9]/.test(password)) errors.push('one number');
+    if (!/[^A-Za-z0-9]/.test(password)) errors.push('one special character');
     return errors;
   };
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     setError('');
     
@@ -75,74 +129,106 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     }
   };
 
-  // Handle registration
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setSuccess('');
     
-    // Validate passwords match
+    // Basic validation
+    if (!formData.email || !formData.password) {
+      setError('Email and password are required');
+      return;
+    }
+    
+    // Email validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const response = await api.login({
+        email: formData.email,
+        password: formData.password
+      });
+      
+      if (response.success && response.data) {
+        setSuccess('Login successful! Redirecting...');
+        onLogin(response.data.user || { token: response.data.token });
+      } else if (response.requiresVerification) {
+        setViewMode('verify-otp');
+        setSuccess('Please verify your email address to continue.');
+      } else {
+        setError(response.message || 'Invalid email or password. Please try again.');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setError('An error occurred during login. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    
+    // Basic validation
+    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
+      setError('All fields are required');
+      return;
+    }
+    
+    // Email validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    
+    // Password match validation
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return;
     }
     
-    // Validate password strength
-    const errors = validatePassword(formData.password);
-    if (errors.length > 0) {
-      setError('Password does not meet requirements');
+    // Password strength validation
+    const passwordErrors = validatePassword(formData.password);
+    if (passwordErrors.length > 0) {
+      setError(`Password must contain: ${passwordErrors.join(', ')}`);
       return;
     }
     
     setIsLoading(true);
     
-    const response = await api.register({
-      name: formData.name,
-      email: formData.email,
-      password: formData.password,
-      confirmPassword: formData.confirmPassword
-    });
-    
-    setIsLoading(false);
-    
-    if (response.success) {
-      setSuccess(response.message || 'Registration successful! Check your email for verification code.');
-      setViewMode('verify-otp');
-    } else {
-      setError(response.message || 'Registration failed. Please try again.');
-    }
-  };
-
-  // Handle login
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    setIsLoading(true);
-    
-    const response = await api.login({
-      email: formData.email,
-      password: formData.password
-    });
-    
-    setIsLoading(false);
-    
-    if (response.success && response.data) {
-      // Check if user has completed health profile
-      const hasCompletedHealthProfile = response.data.user?.hasCompletedHealthProfile;
+    try {
+      const response = await api.register({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        confirmPassword: formData.confirmPassword
+      });
       
-      // If user has not completed health profile, we'll show the dialog in the App component
-      onLogin(response.data.user || { token: response.data.token });
-    } else if (response.requiresVerification) {
-      setError(response.message || 'Email verification required');
-      setViewMode('verify-otp');
-    } else {
-      setError(response.message || 'Login failed. Please check your credentials.');
+      if (response.success) {
+        setSuccess(response.message || 'Registration successful! Check your email for verification code.');
+        setViewMode('verify-otp');
+      } else if (response.errors && response.errors.length > 0) {
+        setError(response.errors[0].message);
+      } else {
+        setError(response.message || 'Registration failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      setError('An unexpected error occurred. Please try again later.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Handle OTP verification
-  const handleVerifyOTP = async (e: React.FormEvent) => {
+  const handleVerifyOTP = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setSuccess('');
@@ -155,21 +241,34 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     
     setIsLoading(true);
     
-    const response = await api.verifyOTP({
-      email: formData.email,
-      otp: otpCode
-    });
-    
-    setIsLoading(false);
-    
-    if (response.success && response.data?.user) {
-      setSuccess('Email verified successfully!');
-      setTimeout(() => {
-        onLogin(response.data.user);
-      }, 1000);
-    } else {
-      setError(response.message || 'Invalid or expired code. Please try again.');
-      setOtp(['', '', '', '', '', '']);
+    try {
+      const response = await api.verifyOTP({
+        email: formData.email,
+        otp: otpCode
+      });
+      
+      if (response.success) {
+        setSuccess('Email verified successfully!');
+        setOtp(['', '', '', '', '', '']);
+        
+        // If there's user data in the response, log them in
+        if (response.data?.user || response.data?.token) {
+          setTimeout(() => {
+            onLogin(response.data?.user || { token: response.data?.token });
+          }, 1000);
+        } else {
+          // If no user data, go to login
+          setViewMode('login');
+        }
+      } else {
+        setError(response.message || 'Invalid or expired code. Please try again.');
+        setOtp(['', '', '', '', '', '']);
+      }
+    } catch (error) {
+      console.error('OTP verification error:', error);
+      setError('An error occurred while verifying your code. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -179,20 +278,25 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     setSuccess('');
     setIsLoading(true);
     
-    const response = await api.resendOTP(formData.email);
-    
-    setIsLoading(false);
-    
-    if (response.success) {
-      setSuccess(response.message || 'New verification code sent!');
-    } else {
-      setError(response.message || 'Failed to resend code. Please try again.');
+    try {
+      const response = await api.resendOTP(formData.email);
+      
+      if (response.success) {
+        setSuccess(response.message || 'New verification code sent!');
+      } else {
+        setError(response.message || 'Failed to resend code. Please try again.');
+      }
+    } catch (error) {
+      console.error('Resend OTP error:', error);
+      setError('Failed to resend verification code. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Handle OTP input
   const handleOTPChange = (index: number, value: string) => {
-    if (!/^[0-9]*$/.test(value)) return;
+    if (!/^\d*$/.test(value)) return;
     
     const newOtp = [...otp];
     newOtp[index] = value.slice(-1);
@@ -200,7 +304,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     
     // Auto-focus next input
     if (value && index < 5) {
-      const nextInput = document.getElementById(`otp-${index + 1}`);
+      const nextInput = document.getElementById(`otp-${index + 1}`) as HTMLInputElement;
       nextInput?.focus();
     }
   };
@@ -214,15 +318,43 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   };
 
   // Handle OTP backspace
-  const handleOTPKeyDown = (index: number, e: React.KeyboardEvent) => {
+  const handleOTPKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace' && !otp[index] && index > 0) {
-      const prevInput = document.getElementById(`otp-${index - 1}`);
+      const prevInput = document.getElementById(`otp-${index - 1}`) as HTMLInputElement;
       prevInput?.focus();
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-sky-50 flex items-center justify-center p-4">
+      {/* API Status Indicator */}
+      {!apiStatus.online && (
+        <div className="fixed top-4 left-4 right-4 z-50 bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded-lg shadow-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <AlertTriangle className="w-5 h-5 mr-2" />
+              <span className="font-medium">API Connection Issue</span>
+            </div>
+            <span className="text-sm">{apiStatus.message}</span>
+          </div>
+        </div>
+      )}
+
+      {/* API Status Icon */}
+      <div className="fixed top-4 right-4 z-50">
+        {apiStatus.online ? (
+          <div className="flex items-center bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
+            <Wifi className="w-4 h-4 mr-1" />
+            <span>API Online</span>
+          </div>
+        ) : (
+          <div className="flex items-center bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm">
+            <WifiOff className="w-4 h-4 mr-1" />
+            <span>API Offline</span>
+          </div>
+        )}
+      </div>
+
       {/* Background Animation */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {[...Array(20)].map((_, i) => (

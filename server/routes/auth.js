@@ -322,6 +322,8 @@ router.get('/me', authenticate, async (req, res) => {
 // Update user profile (protected route)
 router.put('/profile', authenticate, async (req, res) => {
   try {
+    console.log('Profile update request received:', req.body);
+    console.log('Authenticated user:', req.user);
     const allowedUpdates = ['name', 'phone', 'location', 'avatar', 'preferences', 'healthDetails'];
     const updates = {};
     
@@ -331,11 +333,15 @@ router.put('/profile', authenticate, async (req, res) => {
       }
     });
     
+    console.log('Updates to apply:', updates);
+    
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { $set: updates },
       { new: true, runValidators: true }
     ).select('-password');
+    
+    console.log('Updated user:', user);
     
     res.json({ 
       success: true, 
@@ -349,6 +355,33 @@ router.put('/profile', authenticate, async (req, res) => {
       message: 'Failed to update profile' 
     });
   }
+});
+
+// Health check endpoint
+router.get('/health', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'Auth service is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// CORS test endpoint
+router.options('/cors-test', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin);
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
+});
+
+router.get('/cors-test', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'CORS test successful',
+    origin: req.headers.origin,
+    timestamp: new Date().toISOString()
+  });
 });
 
 export default router;

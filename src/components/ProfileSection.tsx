@@ -46,7 +46,21 @@ interface User {
     voiceEnabled: boolean;
     notifications: boolean;
   };
+  healthDetails?: HealthDetails;
+  hasCompletedProfile: boolean;
   loginTime: string;
+}
+
+interface HealthDetails {
+  height: string;
+  weight: string;
+  bloodGroup: string;
+  dateOfBirth: string;
+  gender: string;
+  allergies: string;
+  chronicConditions: string;
+  emergencyContact: string;
+  preferredUnits: 'metric' | 'imperial';
 }
 
 interface ProfileSectionProps {
